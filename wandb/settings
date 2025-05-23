@@ -1,0 +1,5 @@
+[default]
+entity = tianyucn98
+project = galaxywalker
+base_url = https://api.wandb.ai
+

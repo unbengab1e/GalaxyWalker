@@ -1,0 +1,89 @@
+{
+  "os": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+  "python": "CPython 3.10.16",
+  "startedAt": "2025-05-22T15:25:11.811795Z",
+  "args": [
+    "--model_path",
+    "/mnt/e/qwen2vl/Qwen2-VL-2B-Instruct",
+    "--train_regression_data",
+    "/mnt/e/datasets/galaxyWalker/train_add_feature.hdf5",
+    "--train_classification_data",
+    "/mnt/e/datasets/galaxyWalker/train_add_feature.hdf5",
+    "--regression_eval_dir",
+    "/mnt/e/datasets/galaxyWalker/",
+    "--classification_eval_dir",
+    "/mnt/e/datasets/galaxyWalker/classification",
+    "--eval_regression_tasks",
+    "task1_redshift",
+    "task2_log_mstar",
+    "task2_z_mw",
+    "task2_tage_mw",
+    "task2_sSFR",
+    "--eval_classification_tasks",
+    "smooth",
+    "disk-edge-on",
+    "spiral-arms",
+    "bar",
+    "bulge-size",
+    "how-rounded",
+    "edge-on-bulge",
+    "spiral-winding",
+    "spiral-arm-count",
+    "merging",
+    "--image_dir",
+    "/mnt/e/provabgs/images",
+    "--template_path",
+    "template_ultra_qwen2vl_classification.json",
+    "--output_dir",
+    "/mnt/e/outputs/galaxy_walker_stage2",
+    "--learning_rate",
+    "2e-5",
+    "--per_device_train_batch_size",
+    "1",
+    "--per_device_eval_batch_size",
+    "1",
+    "--gradient_accumulation_steps",
+    "1",
+    "--eval_steps",
+    "1000",
+    "--save_steps",
+    "10000",
+    "--samples_per_regression_task",
+    "10",
+    "--samples_per_classification_task",
+    "50",
+    "--num_train_epochs",
+    "3"
+  ],
+  "program": "/home/zyx/galaxywalker/ft_qwen2_ultra.py",
+  "codePath": "ft_qwen2_ultra.py",
+  "root": "/home/zyx/galaxywalker",
+  "host": "DESKTOP-83IAG7U",
+  "executable": "/home/zyx/anaconda3/envs/py310/bin/python",
+  "codePathLocal": "ft_qwen2_ultra.py",
+  "cpu_count": 6,
+  "cpu_count_logical": 12,
+  "gpu": "NVIDIA GeForce RTX 2060",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "1081101176832",
+      "used": "48353349632"
+    }
+  },
+  "memory": {
+    "total": "12546392064"
+  },
+  "cpu": {
+    "count": 6,
+    "countLogical": 12
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA GeForce RTX 2060",
+      "memoryTotal": "12884901888",
+      "architecture": "Turing"
+    }
+  ],
+  "cudaVersion": "12.6"
+}
