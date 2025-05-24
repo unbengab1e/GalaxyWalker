@@ -354,28 +354,29 @@ class AstroQwen2VLForConditionalGeneration(Qwen2VLForConditionalGeneration):
             # model_dtype = inputs_embeds.dtype  # 获取模型当前使用的dtype
             with torch.amp.autocast('cuda', dtype=torch.bfloat16):
                 inputs_embeds = self.model.embed_tokens(input_ids)
-            model_dtype = torch.bfloat16  # 固定使用bfloat16
-            inputs_embeds = inputs_embeds.to(torch.bfloat16)
+            model_dtype = torch.float32  # 固定使用bfloat16
+            if inputs_embeds.dtype != model_dtype:
+                inputs_embeds = inputs_embeds.to(model_dtype)
             # Process spectral features
 
           
             spec_embeds = self.process_features(spec_features, self.spec_projector, 
-                                              self.spec_norm, self.spec_scale)
+                                              self.spec_norm, self.spec_scale, model_dtype)
             spec_mask = (input_ids == self.spec_token_id).unsqueeze(-1)
             inputs_embeds = inputs_embeds.masked_scatter(spec_mask, spec_embeds) if spec_embeds is not None else inputs_embeds
             
             euc_embeds = self.process_features(euc_features, self.struc_projector, 
-                                              self.struc_norm, self.struc_scale)
+                                              self.struc_norm, self.struc_scale, model_dtype)
             euc_mask = (input_ids == self.euc_token_id).unsqueeze(-1)
             inputs_embeds = inputs_embeds.masked_scatter(euc_mask, euc_embeds) if euc_embeds is not None else inputs_embeds
 
             hyp_embeds = self.process_features(hyp_features, self.struc_projector, 
-                                              self.struc_norm, self.struc_scale)
+                                              self.struc_norm, self.struc_scale, model_dtype)
             hyp_mask = (input_ids == self.hyp_token_id).unsqueeze(-1)
             inputs_embeds = inputs_embeds.masked_scatter(hyp_mask, hyp_embeds) if hyp_embeds is not None else inputs_embeds
 
             sph_embeds = self.process_features(sph_features, self.struc_projector, 
-                                              self.struc_norm, self.struc_scale)
+                                              self.struc_norm, self.struc_scale, model_dtype)
             sph_mask = (input_ids == self.sph_token_id).unsqueeze(-1)
             inputs_embeds = inputs_embeds.masked_scatter(sph_mask, sph_embeds) if sph_embeds is not None else inputs_embeds
             
@@ -383,7 +384,8 @@ class AstroQwen2VLForConditionalGeneration(Qwen2VLForConditionalGeneration):
             # Process vision features (from parent class)
             if pixel_values is not None:
                 image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw)
-                image_embeds=image_embeds.to(torch.bfloat16)
+                if image_embeds.dtype != model_dtype:
+                    image_embeds=image_embeds.to(model_dtype)
                 image_mask = (input_ids == self.config.image_token_id).unsqueeze(-1)
                 # print(image_mask.dtype, inputs_embeds.dtype, image_embeds.dtype)
                 # if image_embeds.dtype == torch.bfloat16:
@@ -395,7 +397,7 @@ class AstroQwen2VLForConditionalGeneration(Qwen2VLForConditionalGeneration):
 
                 inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
             
-            
+            del spec_mask, euc_mask, hyp_mask, sph_mask, image_embeds
             inputs_embeds = torch.clip(inputs_embeds, -100, 100)  # 防止数值溢出
 
         # Forward through model
