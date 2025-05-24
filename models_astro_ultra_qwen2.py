@@ -383,6 +383,7 @@ class AstroQwen2VLForConditionalGeneration(Qwen2VLForConditionalGeneration):
             # Process vision features (from parent class)
             if pixel_values is not None:
                 image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw)
+                image_embeds=image_embeds.to(torch.bfloat16)
                 image_mask = (input_ids == self.config.image_token_id).unsqueeze(-1)
                 # print(image_mask.dtype, inputs_embeds.dtype, image_embeds.dtype)
                 # if image_embeds.dtype == torch.bfloat16:
