@@ -355,6 +355,7 @@ class AstroQwen2VLForConditionalGeneration(Qwen2VLForConditionalGeneration):
             with torch.amp.autocast('cuda', dtype=torch.bfloat16):
                 inputs_embeds = self.model.embed_tokens(input_ids)
             model_dtype = torch.bfloat16  # 固定使用bfloat16
+            inputs_embeds = inputs_embeds.to(torch.bfloat16)
             # Process spectral features
 
           
@@ -694,7 +695,3 @@ class AstroQwen2VLForConditionalGeneration(Qwen2VLForConditionalGeneration):
                 prediction = self.num_head(combined_features)
             
             return prediction.squeeze()
-
-if __name__ == "__main__":
-    checkpoint = "/mnt/data/CVPR2025/task1_data/Qwen2-VL-2B-Instruct"
-    model = AstroQwen2VLForConditionalGeneration.from_pretrained(checkpoint)
