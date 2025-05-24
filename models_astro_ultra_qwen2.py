@@ -413,8 +413,6 @@ class AstroQwen2VLForConditionalGeneration(Qwen2VLForConditionalGeneration):
             if pixel_values is not None:
                 image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw)
                 image_mask = (input_ids == self.config.image_token_id).unsqueeze(-1)
-                if image_mask.dtype != inputs_embeds.dtype:
-                    image_mask = image_mask.to(inputs_embeds.dtype)
                 if image_embeds.dtype != inputs_embeds.dtype:
                     image_embeds = image_embeds.to(inputs_embeds.dtype)
                 inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)

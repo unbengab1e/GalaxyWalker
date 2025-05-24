@@ -1,9 +1,9 @@
-import os
 import argparse
 import logging
+import wandb
+import torch
 from typing import Dict, List, Tuple
 from collections import defaultdict
-import torch
 from torch.utils.data import DataLoader
 from transformers import AutoProcessor, get_linear_schedule_with_warmup
 from accelerate import Accelerator, DistributedDataParallelKwargs
@@ -13,13 +13,11 @@ from tqdm.auto import tqdm
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import r2_score, accuracy_score, f1_score
-import wandb
 import re
-import math
 from tqdm import tqdm
 
 from models_astro_ultra_qwen2 import AstroQwen2VLForConditionalGeneration
-from dataset_ultra_qwen2vl import Qwen2VLTrainingDataset, Qwen2VLEvaluationDataset, collate_fn, Qwen2VLClassificationEvaluationDataset, Qwen2VLRegressionEvaluationDataset
+from dataset_ultra_qwen2vl import Qwen2VLTrainingDataset, collate_fn,  Qwen2VLRegressionEvaluationDataset
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -32,61 +30,6 @@ logging.basicConfig(
 )
 
 logger = get_logger(__name__)
-
-def parse_args():
-    parser = argparse.ArgumentParser()
-    # Model and data arguments
-    parser.add_argument("--model_path", type=str, required=True)
-    parser.add_argument("--train_regression_data", type=str, required=True)
-    parser.add_argument("--train_classification_data", type=str, required=True)
-    # parser.add_argument("--eval_regression_data", type=str, required=True)
-    # parser.add_argument("--eval_classification_data", type=str, required=True)
-    parser.add_argument("--image_dir", type=str, required=True)
-    parser.add_argument("--template_path", type=str, required=True)
-    parser.add_argument("--output_dir", type=str, default="outputs")
-    
-    # Training hyperparameters
-    parser.add_argument("--learning_rate", type=float, default=2e-5)
-    parser.add_argument("--weight_decay", type=float, default=0.01)
-    parser.add_argument("--num_train_epochs", type=int, default=3)
-    parser.add_argument("--warmup_steps", type=int, default=500)
-    parser.add_argument("--per_device_train_batch_size", type=int, default=4)
-    parser.add_argument("--per_device_eval_batch_size", type=int, default=4)
-    parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
-    parser.add_argument("--seed", type=int, default=42)
-    
-    # Evaluation and logging
-    parser.add_argument("--eval_steps", type=int, default=500)
-    parser.add_argument("--logging_steps", type=int, default=100)
-    parser.add_argument("--save_steps", type=int, default=1000)
-    
-
-    parser.add_argument("--regression_eval_dir", type=str, required=True,
-                       help="Directory containing split regression evaluation files")
-    parser.add_argument("--classification_eval_dir", type=str, required=True,
-                       help="Path to classification evaluation HDF5 file")
-    parser.add_argument("--eval_regression_tasks", nargs='+', 
-                       help="Specific regression tasks to evaluate")
-    parser.add_argument("--eval_classification_tasks", nargs='+',
-                       help="Specific classification tasks to evaluate")
-    parser.add_argument("--samples_per_regression_task", type=int, default=None,
-                       help="Number of samples to evaluate per regression task")
-    parser.add_argument("--samples_per_classification_task", type=int, default=None,
-                       help="Number of samples to evaluate per classification task")
-
-    args = parser.parse_args()
-
-    # 构建数据字典
-    args.train_data = {
-        "regression": args.train_regression_data
-        # "classification": args.train_classification_data
-    }
-    # args.eval_data = {
-    #     "regression": args.eval_regression_data,
-    #     "classification": args.eval_classification_data
-    # }
-    
-    return args
 
 def prepare_model_for_training(model):
     """冻结基础模型参数,只训练新增参数"""
@@ -255,128 +198,69 @@ def evaluate_regression(model, eval_dataloader, accelerator, args, global_step):
     
     return task_metrics
 
-def evaluate_classification(model, eval_dataloader, args, global_step, accelerator):
-    """评估分类任务"""
-    model.eval()
-    task_metrics = {}
-    task_predictions = defaultdict(list)
-    task_labels = defaultdict(list)
-    
-    def extract_answer(text: str) -> str:
-        """
-        提取<|im_start|>assistant和<|im_end|>之间的回答内容
-        """
-        return text.split("<|im_start|>assistant")[1]
-    
-    def extract_class_label(answer: str) -> int:
-        """从回答中提取分类标签
-        
-        支持的模式包括:
-        - 完整括号: (a), (b), (c)
-        - 左括号: (a, (b, (c
-        - 混合模式: (a), (b, (c)
-        
-        Args:
-            answer: str, 包含答案的字符串
-        
-        Returns:
-            int: 提取的类别标签(0-25对应a-z), 提取失败返回-1
-        """
-        if not answer:  # 如果答案为空
-            return -1
-                
-        # 匹配以下模式:
-        # 1. (a) - 完整括号
-        # 2. (a  - 只有左括号
-        # 标准化为小写并移除空白字符
-        answer = answer.lower().strip()
-        
-        # 查找所有可能的模式
-        # (?:\)|\b) 表示匹配右括号或者词边界
-        matches = re.search(r'\(([a-z])(?:\)|\b)', answer)
-        
-        if matches:
-            return ord(matches.group(1)) - ord('a')
-        return -1
-    
-    print(f"Evaluating classification tasks, total batches: {len(eval_dataloader)}")
-    for batch in eval_dataloader:
-        with torch.no_grad():
-            batch_tasks = batch['task_types']
-            
-            # 生成预测结果
-            generated_ids = model.generate(
-                **batch["processed_inputs"],
-                max_new_tokens=5,
-                do_sample=False
-            )
-            generated_texts = args.processor.batch_decode(generated_ids)
-            
-            # 处理每个样本的预测结果
-            for i, (text, task) in enumerate(zip(generated_texts, batch_tasks)):
-                # 提取assistant的回答
-                answer = extract_answer(text)
-                print(f"Task: {task}")
-                print(f"Full text: {text}")
-                print(f"Extracted answer: {answer}")
-                
-                # 从回答中提取标签
-                pred_label = extract_class_label(answer)
-                task_predictions[task].append(pred_label)
-                task_labels[task].append(batch['answers'][i])
-    
-    # 计算每个任务的指标
-    for task in task_predictions.keys():
-        predictions = np.array(task_predictions[task])
-        labels = np.array(task_labels[task])
-        
-        # 过滤掉无效预测
-        valid_indices = predictions != -1
-        valid_predictions = predictions[valid_indices]
-        valid_labels = labels[valid_indices]
-        
-        if len(valid_predictions) > 0:
-            acc = accuracy_score(valid_labels, valid_predictions)
-            f1 = f1_score(valid_labels, valid_predictions, average='weighted')
-        else:
-            acc = 0
-            f1 = 0
-            
-        print(f"\nTask: {task}")
-        print(f"Total samples: {len(predictions)}")
-        print(f"Valid samples: {len(valid_predictions)}")
-        print(f"Invalid samples: {len(predictions) - len(valid_predictions)}")
-        print(f"Accuracy: {acc:.4f}, F1: {f1:.4f}")
-        
-        task_metrics[task] = {
-            'accuracy': acc,
-            'f1': f1,
-            'valid_ratio': len(valid_predictions) / len(predictions)
-        }
-        
-        # 记录到tensorboard
-        args.writer.add_scalar(f'{task}/accuracy', acc, global_step)
-        args.writer.add_scalar(f'{task}/f1', f1, global_step)
-        args.writer.add_scalar(f'{task}/valid_ratio', len(valid_predictions) / len(predictions), global_step)
-
-        if accelerator.is_main_process:
-            wandb.log({
-                f'{task}/accuracy': acc,
-                f'{task}/f1': f1
-            }, step=global_step)
-    
-    return task_metrics
-
 def train():
-    args = parse_args()
+    #args
+    parser = argparse.ArgumentParser()
+    # Model and data arguments
+    parser.add_argument("--model_path", type=str, required=True)
+    parser.add_argument("--train_regression_data", type=str, required=True)
+    parser.add_argument("--image_dir", type=str, required=True)
+    parser.add_argument("--template_path", type=str, required=True)
+    parser.add_argument("--output_dir", type=str, default="outputs")
+    
+    # Training hyperparameters
+    parser.add_argument("--learning_rate", type=float, default=2e-5)
+    parser.add_argument("--weight_decay", type=float, default=0.01)
+    parser.add_argument("--num_train_epochs", type=int, default=3)
+    parser.add_argument("--warmup_steps", type=int, default=500)
+    parser.add_argument("--per_device_train_batch_size", type=int, default=4)
+    parser.add_argument("--per_device_eval_batch_size", type=int, default=4)
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
+    parser.add_argument("--seed", type=int, default=42)
+    
+    # Evaluation and logging
+    parser.add_argument("--eval_steps", type=int, default=500)
+    parser.add_argument("--logging_steps", type=int, default=100)
+    parser.add_argument("--save_steps", type=int, default=1000)
+    
+    
+    parser.add_argument("--regression_eval_dir", type=str, required=True,
+                       help="Directory containing split regression evaluation files")
+    parser.add_argument("--eval_regression_tasks", nargs='+', 
+                       help="Specific regression tasks to evaluate")
+    parser.add_argument("--samples_per_regression_task", type=int, default=None,
+                       help="Number of samples to evaluate per regression task")
+    
+    args = parser.parse_args(args=['--model_path', '/kaggle/working/models/Qwen2-VL-2B-Instruct',
+                                   '--train_regression_data', '/kaggle/working/datasets/aaaaaaa/kaggle_datasets/train_add_feature.hdf5',
+                                   '--regression_eval_dir', '/kaggle/working/datasets/aaaaaaa/kaggle_datasets',
+                                   '--eval_regression_tasks', 'task1_redshift',
+                                   '--image_dir', '/kaggle/working/datasets/aaaaaaa/kaggle_datasets/images',
+                                   '--template_path', 'template_ultra_qwen2vl_classification.json',
+                                   '--output_dir', '/kaggle/working/outputs',
+                                   '--per_device_train_batch_size', '1',
+                                   '--per_device_eval_batch_size', '1',
+                                   '--gradient_accumulation_steps', '1',
+                                   '--eval_steps', '1000',
+                                   '--save_steps', '10000',
+                                   '--samples_per_regression_task', '5',
+                                   '--num_train_epochs', '3'
+                                   ])
+    
+    # 构建数据字典
+    args.train_data = {
+        "regression": args.train_regression_data
+        # "classification": args.train_classification_data
+    }
     
     # 初始化accelerator
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         kwargs_handlers=[ddp_kwargs],
-        mixed_precision="fp16"
+        mixed_precision='bf16'
     )
+    accelerator.print(f'device {str(accelerator.device)} is used!')
     
     # 设置随机种子
     set_seed(args.seed)
@@ -384,6 +268,7 @@ def train():
     # 初始化tensorboard
     if accelerator.is_main_process:
         args.writer = SummaryWriter(args.output_dir)
+        wandb.login(key="c3fc632dc58c30c780f159d673f9ba5d39380b5e")
         wandb.init(project="galaxywalker")
     
     # 加载模型和数据
@@ -401,14 +286,6 @@ def train():
         processor=processor
     )
     
-    # eval_dataset = Qwen2VLEvaluationDataset(
-    #     hdf5_paths=args.eval_data,
-    #     image_dir=args.image_dir,
-    #     template_path=args.template_path,
-    #     processor=processor,
-    #     max_regression_samples=args.max_eval_samples
-    # )
-    
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=args.per_device_train_batch_size,
@@ -416,14 +293,6 @@ def train():
         collate_fn=collate_fn
     )
     
-    # eval_dataloader = DataLoader(
-    #     eval_dataset,
-    #     batch_size=args.per_device_eval_batch_size,
-    #     collate_fn=collate_fn
-    # )
-    # 替换原来的eval_dataset初始化
-    
-
     eval_regression_dataset = Qwen2VLRegressionEvaluationDataset(
         eval_dir=args.regression_eval_dir,
         image_dir=args.image_dir,
@@ -432,30 +301,15 @@ def train():
         max_samples_per_task=args.samples_per_regression_task,
         selected_tasks=args.eval_regression_tasks
     )
-
-    # eval_classification_dataset = Qwen2VLClassificationEvaluationDataset(
-    #     eval_dir=args.classification_eval_dir,
-    #     image_dir=args.image_dir,
-    #     template_path=args.template_path,
-    #     processor=processor,
-    #     max_samples_per_task=args.samples_per_classification_task,
-    #     selected_tasks=args.eval_classification_tasks
-    # )
-
+    
     print("开始创建dataloader……")
-
+    
     # 创建两个dataloader
     eval_regression_dataloader = DataLoader(
         eval_regression_dataset,
         batch_size=args.per_device_eval_batch_size,
         collate_fn=collate_fn
     )
-
-    # eval_classification_dataloader = DataLoader(
-    #     eval_classification_dataset,
-    #     batch_size=args.per_device_eval_batch_size,
-    #     collate_fn=collate_fn
-    # )
     
     # 准备优化器和学习率调度器
     optimizer = torch.optim.AdamW(
@@ -472,9 +326,6 @@ def train():
     )
     
     # 准备训练
-    # model, optimizer, train_dataloader, eval_regression_dataloader, eval_classification_dataloader = accelerator.prepare(
-    #     model, optimizer, train_dataloader,  eval_regression_dataloader, eval_classification_dataloader
-    # )
     model, optimizer, train_dataloader, eval_regression_dataloader = accelerator.prepare(
         model, optimizer, train_dataloader,  eval_regression_dataloader
     )
@@ -487,7 +338,7 @@ def train():
         'accuracy': 0,
         'f1': 0
     }
-
+    
     print("开始训练……")
     
     for epoch in range(args.num_train_epochs):
@@ -495,9 +346,6 @@ def train():
         
         for step, batch in enumerate(tqdm(train_dataloader)):
             with accelerator.accumulate(model):
-                # import pudb;pu.db;
-                # if batch["task_types"][0][0] == 1:
-                #     print(batch["text_sequences"][0][0])
                 outputs = model(**batch["processed_inputs"], return_dict=True)
                 loss = outputs.loss
                 # print(loss)
@@ -521,15 +369,10 @@ def train():
                         reg_metrics = evaluate_regression(
                             model, eval_regression_dataloader, accelerator, args, global_step
                         )
-                        # cls_metrics = evaluate_classification(
-                        #     model, eval_classification_dataloader, args, global_step, accelerator
-                        # )
                         
                         # 更新最佳指标并保存模型
                         avg_mse = np.mean([m['mse'] for m in reg_metrics.values()])
                         avg_r2 = np.mean([m['r2'] for m in reg_metrics.values()])
-                        # avg_acc = np.mean([m['accuracy'] for m in cls_metrics.values()])
-                        # avg_f1 = np.mean([m['f1'] for m in cls_metrics.values()])
                         
                         if avg_mse < best_metrics['mse']:
                             best_metrics['mse'] = avg_mse
@@ -538,14 +381,6 @@ def train():
                         if avg_r2 > best_metrics['r2']:
                             best_metrics['r2'] = avg_r2
                             accelerator.save_state(f"{args.output_dir}/best_r2")
-                            
-                        # if avg_acc > best_metrics['accuracy']:
-                        #     best_metrics['accuracy'] = avg_acc
-                        #     accelerator.save_state(f"{args.output_dir}/best_accuracy")
-                            
-                        # if avg_f1 > best_metrics['f1']:
-                        #     best_metrics['f1'] = avg_f1
-                        #     accelerator.save_state(f"{args.output_dir}/best_f1")
                     
                     # 定期保存checkpoint
                     if global_step % args.save_steps == 0:
@@ -554,6 +389,7 @@ def train():
                         )
     
     # 保存最终模型
+    accelerator.wait_for_everyone()
     accelerator.save_state(f"{args.output_dir}/final")
     
     if accelerator.is_main_process:
