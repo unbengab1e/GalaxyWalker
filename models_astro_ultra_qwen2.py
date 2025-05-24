@@ -309,6 +309,21 @@ class AstroQwen2VLForConditionalGeneration(Qwen2VLForConditionalGeneration):
             self.spec_projector.weight.data.copy_(spec_weight)
             self.struc_projector.weight.data.copy_(struc_weight)
 
+    def process_features(self, features, projector, norm_layer, scale, dtype=torch.bfloat16):
+        """统一的特征处理函数，减少重复代码和中间变量"""
+        if features is None:
+            return None
+        
+        features = features.to(torch.float32)
+        features = F.normalize(features, p=2, dim=-1)
+        
+        with torch.amp.autocast('cuda', enabled=False):
+            embeds = projector.to(torch.float32)(features)
+            embeds = norm_layer.to(torch.float32)(embeds)
+            embeds = embeds * scale.to(torch.float32)
+        
+        return embeds.to(dtype)
+
     def forward(
         self,
         input_ids=None,
@@ -334,88 +349,50 @@ class AstroQwen2VLForConditionalGeneration(Qwen2VLForConditionalGeneration):
         **kwargs
     ):
         if inputs_embeds is None:
-            inputs_embeds = self.model.embed_tokens(input_ids)
-            model_dtype = inputs_embeds.dtype  # 获取模型当前使用的dtype
+            # inputs_embeds = self.model.embed_tokens(input_ids)
+            # # print(f"input_embeds type: {inputs_embeds.dtype}")
+            # model_dtype = inputs_embeds.dtype  # 获取模型当前使用的dtype
+            with torch.amp.autocast('cuda', dtype=torch.bfloat16):
+                inputs_embeds = self.model.embed_tokens(input_ids)
+            model_dtype = torch.bfloat16  # 固定使用bfloat16
             # Process spectral features
 
           
-            spec_embeds = None
-            if spec_features is not None:
-                # 转换到float32进行处理
-                spec_features = spec_features.to(torch.float32)
-                spec_features = F.normalize(spec_features, p=2, dim=-1)
-                
-                # 投影和归一化（在float32下）
-                with torch.amp.autocast("cuda", enabled=False):
-                    spec_embeds = self.spec_projector.to(torch.float32)(spec_features)
-                    spec_embeds = self.spec_norm.to(torch.float32)(spec_embeds)
-                    spec_embeds = spec_embeds * self.spec_scale.to(torch.float32)
-                
-                # 转回模型dtype并替换嵌入
-                spec_embeds = spec_embeds.to(model_dtype)
-                spec_mask = (input_ids == self.spec_token_id).unsqueeze(-1).expand_as(inputs_embeds)
-                inputs_embeds = inputs_embeds.masked_scatter(spec_mask, spec_embeds)
+            spec_embeds = self.process_features(spec_features, self.spec_projector, 
+                                              self.spec_norm, self.spec_scale)
+            spec_mask = (input_ids == self.spec_token_id).unsqueeze(-1)
+            inputs_embeds = inputs_embeds.masked_scatter(spec_mask, spec_embeds) if spec_embeds is not None else None
             
-            euc_embeds = None
-            # Process structural features
-            if euc_features is not None:
-                # 转换到float32进行处理
-                euc_features = euc_features.to(torch.float32)
-                euc_features = F.normalize(euc_features, p=2, dim=-1)
-                
-                # 投影和归一化（在float32下）
-                with torch.amp.autocast("cuda", enabled=False):
-                    euc_embeds = self.struc_projector.to(torch.float32)(euc_features)
-                    euc_embeds = self.struc_norm.to(torch.float32)(euc_embeds)
-                    euc_embeds = euc_embeds * self.struc_scale.to(torch.float32)
-                
-                # 转回模型dtype并替换嵌入
-                euc_embeds = euc_embeds.to(model_dtype)
-                euc_mask = (input_ids == self.euc_token_id).unsqueeze(-1).expand_as(inputs_embeds)
-                inputs_embeds = inputs_embeds.masked_scatter(euc_mask, euc_embeds)
+            euc_embeds = self.process_features(euc_features, self.struc_projector, 
+                                              self.struc_norm, self.struc_scale)
+            euc_mask = (input_ids == self.euc_token_id).unsqueeze(-1)
+            inputs_embeds = inputs_embeds.masked_scatter(euc_mask, euc_embeds) if euc_embeds is not None else None
 
-            hyp_embeds = None
-            if hyp_features is not None:
-                # 转换到float32进行处理
-                hyp_features = hyp_features.to(torch.float32)
-                hyp_features = F.normalize(hyp_features, p=2, dim=-1)
-                
-                # 投影和归一化（在float32下）
-                with torch.amp.autocast("cuda", enabled=False):
-                    hyp_embeds = self.struc_projector.to(torch.float32)(hyp_features)
-                    hyp_embeds = self.struc_norm.to(torch.float32)(hyp_embeds)
-                    hyp_embeds = hyp_embeds * self.struc_scale.to(torch.float32)
-                
-                # 转回模型dtype并替换嵌入
-                hyp_embeds = hyp_embeds.to(model_dtype)
-                hyp_mask = (input_ids == self.hyp_token_id).unsqueeze(-1).expand_as(inputs_embeds)
-                inputs_embeds = inputs_embeds.masked_scatter(hyp_mask, hyp_embeds)
+            hyp_embeds = self.process_features(hyp_features, self.struc_projector, 
+                                              self.struc_norm, self.struc_scale)
+            hyp_mask = (input_ids == self.hyp_token_id).unsqueeze(-1)
+            inputs_embeds = inputs_embeds.masked_scatter(hyp_mask, hyp_embeds) if hyp_embeds is not None else None
 
-            sph_embeds = None
-            if sph_features is not None:
-                # 转换到float32进行处理
-                sph_features = sph_features.to(torch.float32)
-                sph_features = F.normalize(sph_features, p=2, dim=-1)
-                
-                # 投影和归一化（在float32下）
-                with torch.amp.autocast("cuda", enabled=False):
-                    sph_embeds = self.struc_projector.to(torch.float32)(sph_features)
-                    sph_embeds = self.struc_norm.to(torch.float32)(sph_embeds)
-                    sph_embeds = sph_embeds * self.struc_scale.to(torch.float32)
-                
-                # 转回模型dtype并替换嵌入
-                sph_embeds = sph_embeds.to(model_dtype)
-                sph_mask = (input_ids == self.sph_token_id).unsqueeze(-1).expand_as(inputs_embeds)
-                inputs_embeds = inputs_embeds.masked_scatter(sph_mask, sph_embeds)
+            sph_embeds = self.process_features(sph_features, self.struc_projector, 
+                                              self.struc_norm, self.struc_scale)
+            sph_mask = (input_ids == self.sph_token_id).unsqueeze(-1)
+            inputs_embeds = inputs_embeds.masked_scatter(sph_mask, sph_embeds) if sph_embeds is not None else None
             
             image_embeds = None
             # Process vision features (from parent class)
             if pixel_values is not None:
                 image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw)
                 image_mask = (input_ids == self.config.image_token_id).unsqueeze(-1)
-                if image_embeds.dtype != inputs_embeds.dtype:
-                    image_embeds = image_embeds.to(inputs_embeds.dtype)
+                # print(image_mask.dtype, inputs_embeds.dtype, image_embeds.dtype)
+                # if image_embeds.dtype == torch.bfloat16:
+                #     image_embeds = image_embeds.to(torch.float32)
+                #     inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
+                #     inputs_embeds = inputs_embeds.to(torch.bfloat16)
+                # else:
+                #     inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
+
                 inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
+            
             
             inputs_embeds = torch.clip(inputs_embeds, -100, 100)  # 防止数值溢出
 
