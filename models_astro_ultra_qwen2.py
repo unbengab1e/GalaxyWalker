@@ -361,22 +361,22 @@ class AstroQwen2VLForConditionalGeneration(Qwen2VLForConditionalGeneration):
             spec_embeds = self.process_features(spec_features, self.spec_projector, 
                                               self.spec_norm, self.spec_scale)
             spec_mask = (input_ids == self.spec_token_id).unsqueeze(-1)
-            inputs_embeds = inputs_embeds.masked_scatter(spec_mask, spec_embeds) if spec_embeds is not None else None
+            inputs_embeds = inputs_embeds.masked_scatter(spec_mask, spec_embeds) if spec_embeds is not None else inputs_embeds
             
             euc_embeds = self.process_features(euc_features, self.struc_projector, 
                                               self.struc_norm, self.struc_scale)
             euc_mask = (input_ids == self.euc_token_id).unsqueeze(-1)
-            inputs_embeds = inputs_embeds.masked_scatter(euc_mask, euc_embeds) if euc_embeds is not None else None
+            inputs_embeds = inputs_embeds.masked_scatter(euc_mask, euc_embeds) if euc_embeds is not None else inputs_embeds
 
             hyp_embeds = self.process_features(hyp_features, self.struc_projector, 
                                               self.struc_norm, self.struc_scale)
             hyp_mask = (input_ids == self.hyp_token_id).unsqueeze(-1)
-            inputs_embeds = inputs_embeds.masked_scatter(hyp_mask, hyp_embeds) if hyp_embeds is not None else None
+            inputs_embeds = inputs_embeds.masked_scatter(hyp_mask, hyp_embeds) if hyp_embeds is not None else inputs_embeds
 
             sph_embeds = self.process_features(sph_features, self.struc_projector, 
                                               self.struc_norm, self.struc_scale)
             sph_mask = (input_ids == self.sph_token_id).unsqueeze(-1)
-            inputs_embeds = inputs_embeds.masked_scatter(sph_mask, sph_embeds) if sph_embeds is not None else None
+            inputs_embeds = inputs_embeds.masked_scatter(sph_mask, sph_embeds) if sph_embeds is not None else inputs_embeds
             
             image_embeds = None
             # Process vision features (from parent class)
