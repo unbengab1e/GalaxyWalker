@@ -199,6 +199,7 @@ def evaluate_regression(model, eval_dataloader, accelerator, args, global_step):
     return task_metrics
 
 def train():
+    # torch.multiprocessing.set_start_method('spawn')
     #args
     parser = argparse.ArgumentParser()
     # Model and data arguments
@@ -257,9 +258,7 @@ def train():
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        kwargs_handlers=[ddp_kwargs],
-        mixed_precision='bf16',
-        
+        kwargs_handlers=[ddp_kwargs]
     )
     accelerator.print(f'device {str(accelerator.device)} is used!')
     
@@ -269,8 +268,7 @@ def train():
     # 初始化tensorboard
     if accelerator.is_main_process:
         args.writer = SummaryWriter(args.output_dir)
-        wandb.login(key="c3fc632dc58c30c780f159d673f9ba5d39380b5e")
-        wandb.init(project="galaxywalker")
+        wandb.init(project="galaxywalker", mode="offline")
     
     # 加载模型和数据
     min_pixels = 110*110*3
@@ -351,8 +349,35 @@ def train():
                 loss = outputs.loss
                 # print(loss)
                 accelerator.backward(loss)
+
+                # Clean up memory
+                if 'outputs' in locals():
+                    if hasattr(outputs, 'hidden_states'):
+                        del outputs.hidden_states
+                    if hasattr(outputs, 'attentions'):
+                        del outputs.attentions
+                    if hasattr(outputs, 'router_logits'):
+                        del outputs.router_logits
+                    if hasattr(outputs, 'past_key_values'):
+                        del outputs.past_key_values
+                
+                # Clean up feature embeddings
+                for tensor_name in ['spec_embeds', 'euc_embeds', 'hyp_embeds', 'sph_embeds', 'image_embeds']:
+                    if tensor_name in locals():
+                        del locals()[tensor_name]
+                
+                # Clean up masks
+                for mask_name in ['spec_mask', 'euc_mask', 'hyp_mask', 'sph_mask', 'image_mask']:
+                    if mask_name in locals():
+                        del locals()[mask_name]
+                
+                # Clean up other intermediate tensors
+                for tensor_name in ['shift_logits', 'shift_labels', 'num_mask', 'num_logits', 'regression_value']:
+                    if tensor_name in locals():
+                        del locals()[tensor_name]
                 
                 if step % args.gradient_accumulation_steps == 0:
+                    torch.cuda.empty_cache()
                     optimizer.step()
                     lr_scheduler.step()
                     optimizer.zero_grad()
