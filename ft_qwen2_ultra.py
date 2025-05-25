@@ -277,11 +277,6 @@ def train():
     max_pixels = 144*144*3
     processor = AutoProcessor.from_pretrained(args.model_path,min_pixels=min_pixels, max_pixels=max_pixels)
     args.processor = processor
-    model = AstroQwen2VLForConditionalGeneration.from_pretrained(args.model_path,
-                                                                 device_map="auto",
-                                                                 low_cpu_mem_usage=True)
-    model = prepare_model_for_training(model)
-    model.gradient_checkpointing_enable()
 
     print("准备数据集……")
     
@@ -307,6 +302,8 @@ def train():
         max_samples_per_task=args.samples_per_regression_task,
         selected_tasks=args.eval_regression_tasks
     )
+
+    del processor
     
     print("开始创建dataloader……")
     
@@ -331,10 +328,14 @@ def train():
         num_training_steps=num_update_steps
     )
     
-    model=model.to(accelerator.device)
-    optimizer=optimizer.to(accelerator.device)
-    train_dataloader=train_dataloader.to(accelerator.device)
-    eval_regression_dataloader=eval_regression_dataloader.to(accelerator.device)
+    print("准备模型……")
+    # model = AstroQwen2VLForConditionalGeneration.from_pretrained(args.model_path,
+    #                                                              device_map="auto",
+    #                                                              low_cpu_mem_usage=True)
+    model = AstroQwen2VLForConditionalGeneration.from_pretrained(args.model_path)
+    model = prepare_model_for_training(model)
+    model.gradient_checkpointing_enable()
+    # model=model.to(accelerator.device)
     # 准备训练
     model, optimizer, train_dataloader, eval_regression_dataloader = accelerator.prepare(
         model, optimizer, train_dataloader,  eval_regression_dataloader
