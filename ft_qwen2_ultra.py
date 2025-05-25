@@ -275,7 +275,9 @@ def train():
     max_pixels = 144*144*3
     processor = AutoProcessor.from_pretrained(args.model_path,min_pixels=min_pixels, max_pixels=max_pixels)
     args.processor = processor
-    model = AstroQwen2VLForConditionalGeneration.from_pretrained(args.model_path)
+    model = AstroQwen2VLForConditionalGeneration.from_pretrained(args.model_path,
+                                                                 device_map="auto",
+                                                                 low_cpu_mem_usage=True)
     model = prepare_model_for_training(model)
 
     print("准备数据集……")
