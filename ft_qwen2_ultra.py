@@ -331,6 +331,9 @@ def train():
     )
     
     model=model.to(accelerator.device)
+    optimizer=optimizer.to(accelerator.device)
+    train_dataloader=train_dataloader.to(accelerator.device)
+    eval_regression_dataloader=eval_regression_dataloader.to(accelerator.device)
     # 准备训练
     model, optimizer, train_dataloader, eval_regression_dataloader = accelerator.prepare(
         model, optimizer, train_dataloader,  eval_regression_dataloader
