@@ -178,7 +178,7 @@ class Qwen2VLTrainingDataset(Qwen2VLBaseDataset):
         # 获取数据集长度
         self.regression_len = len(self.regression_data) if self.regression_data is not None else 0
         # 权宜之计
-        self.regression_len = self.regression_len // 2
+        self.regression_len = self.regression_len // 4
         self.classification_len = len(self.classification_data['iauname']) if self.classification_data is not None else 0
         
         # Combine all available tasks
