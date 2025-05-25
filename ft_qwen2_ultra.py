@@ -304,6 +304,15 @@ def train():
     )
 
     del processor
+
+    print("准备模型……")
+    # model = AstroQwen2VLForConditionalGeneration.from_pretrained(args.model_path,
+    #                                                              device_map="auto",
+    #                                                              low_cpu_mem_usage=True)
+    model = AstroQwen2VLForConditionalGeneration.from_pretrained(args.model_path)
+    model = prepare_model_for_training(model)
+    model.gradient_checkpointing_enable()
+    # model=model.to(accelerator.device)
     
     print("开始创建dataloader……")
     
@@ -327,15 +336,6 @@ def train():
         num_warmup_steps=args.warmup_steps,
         num_training_steps=num_update_steps
     )
-    
-    print("准备模型……")
-    # model = AstroQwen2VLForConditionalGeneration.from_pretrained(args.model_path,
-    #                                                              device_map="auto",
-    #                                                              low_cpu_mem_usage=True)
-    model = AstroQwen2VLForConditionalGeneration.from_pretrained(args.model_path)
-    model = prepare_model_for_training(model)
-    model.gradient_checkpointing_enable()
-    # model=model.to(accelerator.device)
     # 准备训练
     model, optimizer, train_dataloader, eval_regression_dataloader = accelerator.prepare(
         model, optimizer, train_dataloader,  eval_regression_dataloader
