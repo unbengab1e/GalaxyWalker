@@ -281,6 +281,7 @@ def train():
                                                                  device_map="auto",
                                                                  low_cpu_mem_usage=True)
     model = prepare_model_for_training(model)
+    model.gradient_checkpointing_enable()
 
     print("准备数据集……")
     
