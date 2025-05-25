@@ -311,7 +311,7 @@ def train():
     #                                                              low_cpu_mem_usage=True)
     model = AstroQwen2VLForConditionalGeneration.from_pretrained(args.model_path)
     model = prepare_model_for_training(model)
-    model.gradient_checkpointing_enable()
+    # model.gradient_checkpointing_enable()
     # model=model.to(accelerator.device)
     
     print("开始创建dataloader……")
