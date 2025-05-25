@@ -279,7 +279,6 @@ def train():
     min_pixels = 110*110*3
     max_pixels = 144*144*3
     processor = AutoProcessor.from_pretrained(args.model_path,min_pixels=min_pixels, max_pixels=max_pixels)
-    args.processor = processor
 
     print("准备数据集……")
     
