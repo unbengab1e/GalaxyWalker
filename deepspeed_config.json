@@ -1,0 +1,25 @@
+{
+    "train_batch_size": "auto",
+    "train_micro_batch_size_per_gpu": "auto",
+    "gradient_accumulation_steps": "auto",
+    "zero_optimization": {
+        "stage": 3,
+        "offload_optimizer": {
+            "device": "cpu",
+            "pin_memory": true
+        },
+        "offload_param": {
+            "device": "cpu",
+            "pin_memory": true
+        }
+    },
+    "fp16": {
+        "enabled": false
+    },
+    "pipeline": {
+        "depth": 2,
+        "micro_batch_size": "auto",
+        "seed_layers": true
+    },
+    "monitor_unused_parameters": true
+}

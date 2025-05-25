@@ -14,8 +14,7 @@ import numpy as np
 from sklearn.metrics import r2_score
 import re
 from tqdm import tqdm
-import os
-os.environ['CUDA_VISIBLE_DEVICES']='0,1'
+import deepspeed
 
 from models_astro_ultra_qwen2 import AstroQwen2VLForConditionalGeneration
 from dataset_ultra_qwen2vl import Qwen2VLTrainingDataset, collate_fn,  Qwen2VLRegressionEvaluationDataset
@@ -255,11 +254,16 @@ def train():
         # "classification": args.train_classification_data
     }
     
+    # deepspeed
+    deepspeed_config = "./deepspeed_config.json"
+    deepspeed_plugin = DeepSpeedPlugin(config=deepspeed_config)
+
     # 初始化accelerator
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        kwargs_handlers=[ddp_kwargs]
+        kwargs_handlers=[ddp_kwargs],
+        deepspeed_plugin=deepspeed_plugin
     )
     accelerator.print(f'device {str(accelerator.device)} is used!')
     
@@ -427,7 +431,7 @@ def train():
                         )
     
     # 保存最终模型
-    accelerator.wait_for_everyone()
+    # accelerator.wait_for_everyone()
     accelerator.save_state(f"{args.output_dir}/final")
     
     # if accelerator.is_main_process:
