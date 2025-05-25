@@ -277,6 +277,8 @@ def train():
     args.processor = processor
     model = AstroQwen2VLForConditionalGeneration.from_pretrained(args.model_path)
     model = prepare_model_for_training(model)
+
+    print("准备数据集……")
     
     train_dataset = Qwen2VLTrainingDataset(
         hdf5_paths=args.train_data,
