@@ -14,6 +14,8 @@ import numpy as np
 from sklearn.metrics import r2_score
 import re
 from tqdm import tqdm
+import os
+os.environ['CUDA_VISIBLE_DEVICES']='0,1'
 
 from models_astro_ultra_qwen2 import AstroQwen2VLForConditionalGeneration
 from dataset_ultra_qwen2vl import Qwen2VLTrainingDataset, collate_fn,  Qwen2VLRegressionEvaluationDataset
