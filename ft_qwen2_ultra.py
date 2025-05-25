@@ -268,6 +268,7 @@ def train():
     # 初始化tensorboard
     if accelerator.is_main_process:
         args.writer = SummaryWriter(args.output_dir)
+        wandb.login(key="c3fc632dc58c30c780f159d673f9ba5d39380b5e")
         wandb.init(project="galaxywalker", mode="offline")
     
     # 加载模型和数据
