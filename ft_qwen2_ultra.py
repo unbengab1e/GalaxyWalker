@@ -5,7 +5,7 @@ import torch
 from collections import defaultdict
 from torch.utils.data import DataLoader
 from transformers import AutoProcessor, get_linear_schedule_with_warmup
-from accelerate import Accelerator, DistributedDataParallelKwargs
+from accelerate import Accelerator, DistributedDataParallelKwargs, DeepSpeedPlugin
 from accelerate.logging import get_logger
 from accelerate.utils import set_seed
 from tqdm.auto import tqdm
@@ -14,7 +14,6 @@ import numpy as np
 from sklearn.metrics import r2_score
 import re
 from tqdm import tqdm
-import deepspeed
 
 from models_astro_ultra_qwen2 import AstroQwen2VLForConditionalGeneration
 from dataset_ultra_qwen2vl import Qwen2VLTrainingDataset, collate_fn,  Qwen2VLRegressionEvaluationDataset
