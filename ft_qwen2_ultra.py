@@ -1,18 +1,17 @@
 import argparse
 import logging
-import wandb
+# import wandb
 import torch
-from typing import Dict, List, Tuple
 from collections import defaultdict
 from torch.utils.data import DataLoader
 from transformers import AutoProcessor, get_linear_schedule_with_warmup
 from accelerate import Accelerator, DistributedDataParallelKwargs
 from accelerate.logging import get_logger
-from accelerate.utils import set_seed, ProjectConfiguration
+from accelerate.utils import set_seed
 from tqdm.auto import tqdm
 import numpy as np
-from torch.utils.tensorboard import SummaryWriter
-from sklearn.metrics import r2_score, accuracy_score, f1_score
+# from torch.utils.tensorboard import SummaryWriter
+from sklearn.metrics import r2_score
 import re
 from tqdm import tqdm
 
@@ -186,15 +185,15 @@ def evaluate_regression(model, eval_dataloader, accelerator, args, global_step):
             'r2': r2
         }
         
-        # 记录到tensorboard
-        args.writer.add_scalar(f'{task}/mse', mse, global_step)
-        args.writer.add_scalar(f'{task}/r2', r2, global_step)
+        # # 记录到tensorboard
+        # args.writer.add_scalar(f'{task}/mse', mse, global_step)
+        # args.writer.add_scalar(f'{task}/r2', r2, global_step)
 
-        if accelerator.is_main_process:
-            wandb.log({
-                f'{task}/mse': mse,
-                f'{task}/r2': r2
-            }, step=global_step)
+        # if accelerator.is_main_process:
+        #     wandb.log({
+        #         f'{task}/mse': mse,
+        #         f'{task}/r2': r2
+        #     }, step=global_step)
     
     return task_metrics
 
@@ -265,11 +264,11 @@ def train():
     # 设置随机种子
     set_seed(args.seed)
     
-    # 初始化tensorboard
-    if accelerator.is_main_process:
-        args.writer = SummaryWriter(args.output_dir)
-        wandb.login(key="c3fc632dc58c30c780f159d673f9ba5d39380b5e")
-        wandb.init(project="galaxywalker", mode="offline")
+    # # 初始化tensorboard
+    # if accelerator.is_main_process:
+    #     args.writer = SummaryWriter(args.output_dir)
+    #     wandb.login(key="c3fc632dc58c30c780f159d673f9ba5d39380b5e")
+    #     wandb.init(project="galaxywalker", mode="offline")
     
     # 加载模型和数据
     min_pixels = 110*110*3
@@ -384,11 +383,11 @@ def train():
                     optimizer.zero_grad()
                     global_step += 1
                     
-                    # 记录训练loss
-                    if global_step % args.logging_steps == 0:
-                        args.writer.add_scalar('train/loss', loss.item(), global_step)
-                        if accelerator.is_main_process:
-                            wandb.log({"train/loss": loss.item()}, step=global_step)
+                    # # 记录训练loss
+                    # if global_step % args.logging_steps == 0:
+                        # args.writer.add_scalar('train/loss', loss.item(), global_step)
+                        # if accelerator.is_main_process:
+                        #     wandb.log({"train/loss": loss.item()}, step=global_step)
                         
                     # 评估
                   
@@ -419,9 +418,9 @@ def train():
     accelerator.wait_for_everyone()
     accelerator.save_state(f"{args.output_dir}/final")
     
-    if accelerator.is_main_process:
-        args.writer.close()
-        wandb.finish()
+    # if accelerator.is_main_process:
+    #     args.writer.close()
+    #     wandb.finish()
 
 if __name__ == "__main__":
     train()
