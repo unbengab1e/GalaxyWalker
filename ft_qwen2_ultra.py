@@ -255,7 +255,7 @@ def train():
     
     # deepspeed
     deepspeed_config = "./deepspeed_config.json"
-    deepspeed_plugin = DeepSpeedPlugin(config=deepspeed_config)
+    deepspeed_plugin = DeepSpeedPlugin(hf_ds_config=deepspeed_config)
 
     # 初始化accelerator
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
