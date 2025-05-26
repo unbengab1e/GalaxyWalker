@@ -304,7 +304,7 @@ def train():
         selected_tasks=args.eval_regression_tasks
     )
 
-    del processor
+    # del processor
 
     print("准备模型……")
     # model = AstroQwen2VLForConditionalGeneration.from_pretrained(args.model_path,
@@ -365,7 +365,7 @@ def train():
 
                 # Immediately clean up forward pass outputs
                 del loss, outputs
-                
+
                 torch.cuda.empty_cache()
                 if step % args.gradient_accumulation_steps == 0:
                     optimizer.step()
