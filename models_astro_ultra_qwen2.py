@@ -352,11 +352,10 @@ class AstroQwen2VLForConditionalGeneration(Qwen2VLForConditionalGeneration):
             # inputs_embeds = self.model.embed_tokens(input_ids)
             # # print(f"input_embeds type: {inputs_embeds.dtype}")
             # model_dtype = inputs_embeds.dtype  # 获取模型当前使用的dtype
-            with torch.amp.autocast('cuda', dtype=torch.bfloat16):
-                inputs_embeds = self.model.embed_tokens(input_ids)
+            inputs_embeds = self.model.embed_tokens(input_ids)
             model_dtype = torch.float32  
-            if inputs_embeds.dtype != model_dtype:
-                inputs_embeds = inputs_embeds.to(model_dtype)
+            # if inputs_embeds.dtype != model_dtype:
+            #     inputs_embeds = inputs_embeds.to(model_dtype)
             # Process spectral features
 
           
@@ -407,7 +406,7 @@ class AstroQwen2VLForConditionalGeneration(Qwen2VLForConditionalGeneration):
             position_ids=position_ids,
             past_key_values=past_key_values,
             inputs_embeds=inputs_embeds,
-            use_cache=False,
+            use_cache=use_cache,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=True,
