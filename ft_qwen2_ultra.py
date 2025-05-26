@@ -253,16 +253,15 @@ def train():
         # "classification": args.train_classification_data
     }
     
-    # deepspeed
-    deepspeed_config = "./deepspeed_config.json"
-    deepspeed_plugin = DeepSpeedPlugin(hf_ds_config=deepspeed_config)
+    # # deepspeed
+    # deepspeed_config = "./deepspeed_config.json"
+    # deepspeed_plugin = DeepSpeedPlugin(hf_ds_config=deepspeed_config)
 
     # 初始化accelerator
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        kwargs_handlers=[ddp_kwargs],
-        deepspeed_plugin=deepspeed_plugin
+        kwargs_handlers=[ddp_kwargs]
     )
     accelerator.print(f'device {str(accelerator.device)} is used!')
     
