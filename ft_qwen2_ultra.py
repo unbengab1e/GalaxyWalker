@@ -363,37 +363,14 @@ def train():
                 # print(loss)
                 accelerator.backward(loss)
 
-                # Clean up memory
-                if 'outputs' in locals():
-                    if hasattr(outputs, 'hidden_states'):
-                        del outputs.hidden_states
-                    if hasattr(outputs, 'attentions'):
-                        del outputs.attentions
-                    if hasattr(outputs, 'router_logits'):
-                        del outputs.router_logits
-                    if hasattr(outputs, 'past_key_values'):
-                        del outputs.past_key_values
+                # Immediately clean up forward pass outputs
+                del loss, outputs
                 
-                # Clean up feature embeddings
-                for tensor_name in ['spec_embeds', 'euc_embeds', 'hyp_embeds', 'sph_embeds', 'image_embeds']:
-                    if tensor_name in locals():
-                        del locals()[tensor_name]
-                
-                # Clean up masks
-                for mask_name in ['spec_mask', 'euc_mask', 'hyp_mask', 'sph_mask', 'image_mask']:
-                    if mask_name in locals():
-                        del locals()[mask_name]
-                
-                # Clean up other intermediate tensors
-                for tensor_name in ['shift_logits', 'shift_labels', 'num_mask', 'num_logits', 'regression_value']:
-                    if tensor_name in locals():
-                        del locals()[tensor_name]
-                
+                torch.cuda.empty_cache()
                 if step % args.gradient_accumulation_steps == 0:
-                    torch.cuda.empty_cache()
                     optimizer.step()
                     lr_scheduler.step()
-                    optimizer.zero_grad()
+                    optimizer.zero_grad(set_to_none=True)
                     global_step += 1
                     
                     # # 记录训练loss
